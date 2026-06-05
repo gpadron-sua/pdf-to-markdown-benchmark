@@ -1,21 +1,42 @@
 # PDF to Markdown Benchmark (Windows)
 
-PowerShell script that benchmarks PDF-to-Markdown conversion tools side by side. Built to answer a practical question: **which tool produces the best Markdown for LLM consumption?**
+Benchmark and daily-use tools for converting PDFs to clean Markdown optimized for LLM consumption.
 
 ## Why this matters
 
 When you feed a 51MB PDF catalog to Claude or GPT, each page counts as an image. A 30-page document burns through your context window fast. Converting to Markdown first means fewer tokens, no image limits, and better structure for the model to work with.
 
-But not all converters are equal — some lose table structure, break reading order, or inflate output with artifacts. This script measures that.
+But not all converters are equal — some lose table structure, break reading order, or inflate output with artifacts. This repo includes a benchmark script to test that, and a daily-use converter based on the results.
 
-## What it benchmarks
+## Benchmark results
 
-| Tool | Type | Notes |
-|---|---|---|
-| [pymupdf4llm](https://github.com/pymupdf/RAG) | Rule-based | Fast, good balance of speed and quality |
-| [markitdown](https://github.com/microsoft/markitdown) | Rule-based | Microsoft, lightweight, basic quality |
-| [marker](https://github.com/datalab-to/marker) | ML-based | Uses vision models, best for complex layouts. Requires PyTorch |
-| [docling](https://github.com/DS4SD/docling) | ML-based | IBM, strongest on tables. Heavy install |
+Tested against a 51MB real estate brochure (58 pages, image-heavy, mixed layouts) on Windows 11, Python 3.13, no GPU.
+
+| Tool | Time | Output size | Lines | Status |
+|---|---|---|---|---|
+| markitdown | **9s** | 11KB | 260 | ⚠️ Prose broken into nonsensical tables |
+| pymupdf4llm | **88s** | 15KB | 183 | ✅ Best balance of speed and quality |
+| marker | **~50 min** | 8.5KB | 170 | ✅ Cleanest text, impractical without GPU |
+| docling | — | — | — | ❌ Failed (Unicode path issue) |
+
+### Findings
+
+- **pymupdf4llm wins for daily use on CPU.** Good reading order, correct headings, preserved lists, and it extracts text from embedded images — something the others miss.
+- **markitdown is fast but unreliable.** It fragments paragraph text into broken table cells on visual-heavy documents. Fine for simple text PDFs, unusable for brochures or catalogs.
+- **marker produces the cleanest output** but took ~50 minutes on CPU. Only viable with a dedicated GPU.
+- **docling fails on Windows paths with accented characters** (e.g. `Padrón` → `Padr¾n`). A known encoding issue in its internal path resolution.
+
+### Post-processing impact
+
+The included cleanup script reduces pymupdf4llm output by **47.5%** (15KB → 8KB) by removing image placeholders, deduplicating repeated blocks (disclaimers, footers), and stripping page numbers — without losing any meaningful content.
+
+## What's in this repo
+
+| File | Purpose |
+|---|---|
+| `benchmark-pdf-to-md.ps1` | Benchmark script — runs all tools and compares results |
+| `pdf2md.py` | Daily-use converter with automatic cleanup |
+| `convert-pdf.bat` | Drag-and-drop wrapper — drop a PDF on it, get a clean `.md` |
 
 ## Requirements
 
@@ -24,6 +45,24 @@ But not all converters are equal — some lose table structure, break reading or
 - PowerShell 5.1+
 
 ## Setup
+
+### For daily use (recommended)
+
+```powershell
+pip install pymupdf4llm
+```
+
+Put `pdf2md.py` and `convert-pdf.bat` in the same folder. Drag any PDF onto the `.bat` file — the `.md` appears next to the original PDF.
+
+Or from the command line:
+
+```powershell
+python pdf2md.py input.pdf                 # output next to PDF
+python pdf2md.py input.pdf output.md       # explicit output path
+python pdf2md.py input.pdf --no-cleanup    # skip post-processing
+```
+
+### For benchmarking
 
 ```powershell
 # Core tools
@@ -36,21 +75,15 @@ pip install marker-pdf
 pip install docling
 ```
 
-## Usage
-
 ```powershell
 .\benchmark-pdf-to-md.ps1 -PdfPath ".\your-file.pdf"
 ```
 
-Results go to `benchmark-results\<filename>\`:
+Results go to `benchmark-results\<filename>\` with one `.md` per tool, a `summary.csv`, and error logs.
 
-- One `.md` file per tool
-- `summary.csv` with timing and size data
-- `.errors.log` for any failures
+## Evaluation criteria
 
-## What to evaluate
-
-The script gives you speed and size. Quality you evaluate manually by checking each `.md` file for:
+The script gives you speed and size. Quality you evaluate manually:
 
 1. **Reading order** — Does text flow correctly, or do columns get mixed?
 2. **Tables** — Are they preserved as Markdown tables or broken into loose text?
@@ -58,21 +91,13 @@ The script gives you speed and size. Quality you evaluate manually by checking e
 4. **Artifacts** — Repeated headers/footers, broken characters, junk text?
 5. **Token efficiency** — Bloated output = wasted tokens with no added value.
 
+These dimensions are adapted from [Nutrient's benchmark](https://github.com/PSPDFKit/pdf-to-markdown), which uses NID (reading order), TEDS (table structure), and MHS (heading hierarchy) against 200 hand-annotated documents.
+
 ### Quick comparison in VS Code
 
 ```powershell
 code --diff ".\benchmark-results\<name>\pymupdf4llm.md" ".\benchmark-results\<name>\marker.md"
 ```
-
-## Evaluation framework
-
-The quality criteria are adapted from [Nutrient's PDF-to-Markdown benchmark](https://github.com/PSPDFKit/pdf-to-markdown), which uses three metrics against 200 hand-annotated documents:
-
-- **NID** (Normalized Inverse Distance) — reading order accuracy
-- **TEDS** (Tree-Edit Distance Score) — table structure preservation
-- **MHS** (Markdown Heading Score) — heading hierarchy fidelity
-
-This script doesn't compute those metrics automatically (that requires annotated ground truth), but uses the same dimensions for manual evaluation.
 
 ## Known issues on Windows
 
