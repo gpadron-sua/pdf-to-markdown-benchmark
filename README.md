@@ -17,14 +17,14 @@ Tested against a 51MB real estate brochure (58 pages, image-heavy, mixed layouts
 | markitdown | **9s** | 11KB | 260 | ⚠️ Prose broken into nonsensical tables |
 | pymupdf4llm | **88s** | 15KB | 183 | ✅ Best balance of speed and quality |
 | marker | **~50 min** | 8.5KB | 170 | ✅ Cleanest text, impractical without GPU |
-| docling | — | — | — | ❌ Failed (Unicode path issue) |
+| docling | — | ~0.5KB | ~20 | ❌ MemoryError on image-heavy PDF, partial output |
 
 ### Findings
 
 - **pymupdf4llm wins for daily use on CPU.** Good reading order, correct headings, preserved lists, and it extracts text from embedded images — something the others miss.
 - **markitdown is fast but unreliable.** It fragments paragraph text into broken table cells on visual-heavy documents. Fine for simple text PDFs, unusable for brochures or catalogs.
 - **marker produces the cleanest output** but took ~50 minutes on CPU. Only viable with a dedicated GPU.
-- **docling fails on Windows paths with accented characters** (e.g. `Padrón` → `Padr¾n`). A known encoding issue in its internal path resolution.
+- **docling crashes on large image-heavy PDFs.** Hits `MemoryError` and `std::bad_alloc` when processing 51MB+ brochures on CPU. Output is partial and unusable (truncated text, missing content). Also fails on Windows paths with accented characters (e.g. `Padrón` → `Padr¾n`) — requires a virtualenv in an ASCII-only path as workaround. May work for smaller, text-heavy PDFs with complex tables.
 
 ### Post-processing impact
 
