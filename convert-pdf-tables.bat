@@ -1,7 +1,8 @@
 @echo off
 REM =============================================
 REM  Arrastra un PDF sobre este .bat
-REM  Convierte con pymupdf4llm (rapido, general)
+REM  Convierte con docling (mejor para tablas)
+REM  Usa virtualenv en C:\venv-pdf
 REM =============================================
 
 if "%~1"=="" (
@@ -11,11 +12,11 @@ if "%~1"=="" (
 )
 
 echo.
-echo  PDF to Markdown (pymupdf4llm)
-echo  ==============================
+echo  PDF to Markdown (docling)
+echo  ==========================
 echo.
 
-python "%~dp0pdf2md.py" "%~1"
+C:\venv-pdf\Scripts\python.exe "%~dp0pdf2md.py" "%~1" --engine docling
 
 echo.
 pause
